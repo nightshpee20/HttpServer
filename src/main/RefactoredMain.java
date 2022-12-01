@@ -66,10 +66,6 @@ public class RefactoredMain {
 				return;
 			}
 			
-//			headers.forEach((key, val) -> {
-//				System.out.println(String.format("%s: %s", key, val));
-//			});
-			
 			StatusCodes code = sendResponse();
 		
 			try {
@@ -95,11 +91,6 @@ public class RefactoredMain {
 		}
 		
 		private StatusCodes sendResponse() {
-			if (serverPath == null) { //TODO: ASK ABOUT EXCEPTION
-				System.out.println("NULL PATH @@@@@@@@@@@@@@@@@@@@@@@ " + serverPath);
-				System.out.println(method + " " + protocol);
-			}
-			
 			File requestedFile = new File(serverPath);
 		
 			StatusCodes statusCode = StatusCodes.OK;
@@ -107,8 +98,12 @@ public class RefactoredMain {
 				statusCode = StatusCodes.NOT_FOUND;
 				requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");
 			} else if (requestedFile.isDirectory()) {
-				statusCode = StatusCodes.FORBIDDEN;
-				requestedFile = new File(WEBROOT_PATH + "\\403_FORBIDDEN.jpg");				
+				requestedFile = new File(serverPath + "\\index.html");
+				System.out.println(serverPath + "\\index.html");
+				if (!requestedFile.exists()) {
+					statusCode = StatusCodes.NOT_FOUND;
+					requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");					
+				}
 			}
 			
 			try (FileInputStream fis = new FileInputStream(requestedFile)){
@@ -120,13 +115,14 @@ public class RefactoredMain {
 			}
 			
 			gatherResponseHeaders(requestedFile);
-			
+
 			StringBuilder headers = new StringBuilder();
 			responseHeaders.forEach((key, val) -> {
 				String hdr = String.format("%s: %s\n", key, val);
 				headers.append(hdr);
 			});
 			
+			System.out.println(requestedFile.getAbsolutePath());
 			try {
 				clientOutput.write(protocol.getBytes());
 				clientOutput.write(" ".getBytes());
