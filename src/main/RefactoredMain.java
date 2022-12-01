@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -66,7 +67,7 @@ public class RefactoredMain {
 				return;
 			}
 			
-			StatusCodes code = sendResponse();
+			StatusCodes code = returnCompressed == true ? sendCompressedResponse() : sendResponse();
 		
 			try {
 				clientInput.close();
@@ -99,7 +100,6 @@ public class RefactoredMain {
 				requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");
 			} else if (requestedFile.isDirectory()) {
 				requestedFile = new File(serverPath + "\\index.html");
-				System.out.println(serverPath + "\\index.html");
 				if (!requestedFile.exists()) {
 					statusCode = StatusCodes.NOT_FOUND;
 					requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");					
@@ -141,6 +141,66 @@ public class RefactoredMain {
 			return statusCode;
 		}
 
+		private StatusCodes sendCompressedResponse() {
+			GZIPOutputStream gzipOutput = null;
+			try {
+				gzipOutput = new GZIPOutputStream(clientOutput);
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+			
+			StatusCodes statusCode = StatusCodes.OK;
+			File requestedFile = new File(serverPath);
+			
+			if (requestedFile.isDirectory()) {
+				requestedFile = new File(serverPath + "\\index.html.gz");
+				
+				if (!requestedFile.exists()) {
+					statusCode = StatusCodes.NOT_FOUND;
+					requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");					
+				}
+			} else if (!(requestedFile = new File(serverPath + ".gz")).exists()) {
+				statusCode = StatusCodes.NOT_FOUND;
+				requestedFile = new File(WEBROOT_PATH + "\\404_NOT_FOUND.jpg");
+			}
+			
+			try (FileInputStream fis = new FileInputStream(requestedFile)){
+				body = fis.readAllBytes();
+			} catch (IOException e) {
+				System.out.println("Error: Could not read the requested file!");
+				//TODO: 500 Internal Server Error
+				return null;
+			}
+			
+			gatherResponseHeaders(requestedFile);
+			responseHeaders.put("Content-Encoding", "gzip");
+			
+			StringBuilder headers = new StringBuilder();
+			responseHeaders.forEach((key, val) -> {
+				String hdr = String.format("%s: %s\n", key, val);
+				headers.append(hdr);
+			});
+			
+			System.out.println(requestedFile.getAbsolutePath());
+			try {
+				clientOutput.write(protocol.getBytes());
+				clientOutput.write(" ".getBytes());
+				clientOutput.write(statusCode.getCode().getBytes());
+				clientOutput.write("\n".getBytes());
+				clientOutput.write(headers.toString().getBytes());
+				clientOutput.write("\n".getBytes());
+				gzipOutput.write(body);
+				clientOutput.flush();
+				gzipOutput.flush();
+			} catch (IOException e) {
+				System.out.println("ERROR: Failed to send response!");
+				System.out.println(e.getMessage());
+				return null;
+			} 
+			
+			return statusCode;
+		}
+		
 		private void gatherResponseHeaders(File requestedFile) {
 			//Content-Type
 			String fileName = requestedFile.getName();
@@ -215,7 +275,9 @@ public class RefactoredMain {
 	private static int threadsCount;
 	private static int port;
 	private static boolean returnDirContents;
-
+	private static boolean returnGzip;
+	private static boolean returnCompressed;
+	
 	private static Options options = new Options();
 	
 	private static ExecutorService threadPool;
@@ -284,6 +346,8 @@ public class RefactoredMain {
 		Option threads = new Option("t", "threads", true, "-t/--threads [number of threads(max 10)], sets up the number of threads that will concurrently respond to requests.");
 		options.addOption(new Option("d", false, "-d, if the requested resource is a directory, the response will contain the directory's content."));
 		options.addOption(new Option("h", "help", false, "list all available options and their description."));
+		options.addOption(new Option("c", "compress", false, "creates compressed versions of text files"));
+		options.addOption(new Option("g", "gzip", false, "returns the compressed version of the requested file"));
 		
 		options.addOption(port);
 		options.addOption(threads);
@@ -337,7 +401,8 @@ public class RefactoredMain {
 				threadsCount = DEFAULT_THREADS;
 			
 			returnDirContents = cm.hasOption("d") ? true : false;
-			
+			returnGzip = cm.hasOption("g") ? true : false;
+			returnCompressed = cm.hasOption("c") ? true : false;
 		} catch (ParseException e) {
 			System.out.println("An error has occured while parsing the input options!\n " + e.getMessage());
 			return false;
