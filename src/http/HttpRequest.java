@@ -18,11 +18,20 @@ import java.util.TimeZone;
 public class HttpRequest {
 	private static Map<String, String> contentTypes;
 	private HttpTask task;
+	private HttpResponse resp;
 	private Socket clientSocket;
 	
-	public HttpRequest(HttpTask task, Socket client) {
+	String method;
+	String path;
+	String protocol;
+	
+	Map<String, String> requestHeaders;
+	
+	public HttpRequest(HttpTask task, Socket client, HttpResponse resp) {
 		this.task = task;
+		this.resp = resp;
 		clientSocket = client;
+		requestHeaders = new HashMap<>();
 		fillContentTypes();
 	}
 	
@@ -31,24 +40,24 @@ public class HttpRequest {
 		String fileName = requestedFile.getName();
 		int dotIndex = fileName.indexOf('.');
 		String format = fileName.substring(dotIndex + 1, fileName.length());
-		task.responseHeaders.put("Content-Type", contentTypes.get(format));
+		resp.responseHeaders.put("Content-Type", contentTypes.get(format));
 		
 		//Content-Length
-		task.responseHeaders.put("Content-Length", String.valueOf(task.body.length));
+		resp.responseHeaders.put("Content-Length", String.valueOf(task.body.length));
 		
 		//Date
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("E, d MMM u H:m:s ");
 		ZoneId GMT = TimeZone.getDefault().toZoneId();
 
 		String date = LocalDateTime.now().format(formatter);
-		task.responseHeaders.put("Date", date);
+		resp.responseHeaders.put("Date", date);
 		
 		//Last-Modified
 		long lmLong = requestedFile.lastModified();
 		Instant lmInstant = Instant.ofEpochMilli(lmLong);
 		
 		String lmStr = LocalDateTime.ofInstant(lmInstant, GMT).format(formatter) + "GMT"; 
-		task.responseHeaders.put("Last-Modified", lmStr);
+		resp.responseHeaders.put("Last-Modified", lmStr);
 	}
 
 	public void extractDetails() throws IOException {
@@ -72,9 +81,9 @@ public class HttpRequest {
 			}
 			
 			
-			task.method = lineParts[0];
-			task.path = lineParts[1];
-			task.protocol = lineParts[2];
+			method = lineParts[0];
+			path = lineParts[1];
+			protocol = lineParts[2];
 			task.serverPath = pathP.toString();
 		}
 		
@@ -86,7 +95,7 @@ public class HttpRequest {
 			String key = line.substring(0, firstColonIndex);
 			String value = line.substring(firstColonIndex + 2, line.length());
 			
-			task.requestHeaders.put(key, value);
+			requestHeaders.put(key, value);
 			
 			line = br.readLine();
 		}

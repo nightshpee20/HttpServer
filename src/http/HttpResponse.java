@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 import main.HttpServer;
@@ -18,15 +20,17 @@ public class HttpResponse {
 	
 	Socket clientSocket;
 	private HttpTask task;
-	private HttpRequest request;
+	HttpRequest request;
 	
 	StatusCodes code;
+	Map<String, String> responseHeaders;
 	
 	public HttpResponse(HttpTask task, Socket client) {
 		this.task = task;
 		clientSocket = client;
-		request = new HttpRequest(task, client);
+		request = new HttpRequest(task, client, this);
 		StatusCodes code = task.server.returnCompressed == true ? sendCompressedResponse() : sendResponse();
+		responseHeaders = new HashMap<>();
 	}
 	
 	private StatusCodes sendResponse() {
@@ -55,7 +59,7 @@ public class HttpResponse {
 		request.gatherResponseHeaders(requestedFile);
 
 		StringBuilder headers = new StringBuilder();
-		task.responseHeaders.forEach((key, val) -> {
+		responseHeaders.forEach((key, val) -> {
 			String hdr = String.format("%s: %s\n", key, val);
 			headers.append(hdr);
 		});
@@ -68,7 +72,7 @@ public class HttpResponse {
 		}
 		
 		try {
-			clientOutput.write(task.protocol.getBytes());
+			clientOutput.write(request.protocol.getBytes());
 			clientOutput.write(" ".getBytes());
 			clientOutput.write(statusCode.getCode().getBytes());
 			clientOutput.write("\n".getBytes());
@@ -123,17 +127,17 @@ public class HttpResponse {
 		}
 		
 		request.gatherResponseHeaders(requestedFile);
-		task.responseHeaders.put("Content-Encoding", "gzip");
+		responseHeaders.put("Content-Encoding", "gzip");
 		
 		StringBuilder headers = new StringBuilder();
-		task.responseHeaders.forEach((key, val) -> {
+		responseHeaders.forEach((key, val) -> {
 			String hdr = String.format("%s: %s\n", key, val);
 			headers.append(hdr);
 		});
 		
 		System.out.println(requestedFile.getAbsolutePath());
 		try {
-			clientOutput.write(task.protocol.getBytes());
+			clientOutput.write(request.protocol.getBytes());
 			clientOutput.write(" ".getBytes());
 			clientOutput.write(statusCode.getCode().getBytes());
 			clientOutput.write("\n".getBytes());

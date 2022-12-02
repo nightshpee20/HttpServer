@@ -24,11 +24,6 @@ import util.StatusCodes;
 
 public class HttpTask implements Runnable {
 	private Socket clientSocket;
-	String method;
-	String path;
-	String protocol;
-	Map<String, String> requestHeaders;
-	Map<String, String> responseHeaders;
 	byte[] body;
 
 	String serverPath;
@@ -36,8 +31,6 @@ public class HttpTask implements Runnable {
 	
 	public HttpTask(Socket client, HttpServer server) throws IOException {
 		clientSocket = client;
-		requestHeaders = new HashMap<>();
-		responseHeaders = new HashMap<>();
 		this.server = server;
 	}
 	
@@ -54,12 +47,12 @@ public class HttpTask implements Runnable {
 		
 		String userAgent = null;
 		if (response.code == StatusCodes.OK) 
-			userAgent = String.format("\"%s\"", requestHeaders.get("User-Agent"));
+			userAgent = String.format("\"%s\"", response.request.requestHeaders.get("User-Agent"));
 		else 	
 			userAgent = String.format("\"Error: %s\"", response.code.getCode());
 		
 		String logMsg = String.format("[%s] \"%s %s\" %s", 
-				LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), method, path, userAgent);
+				LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), response.request.method, response.request.path, userAgent);
 		System.out.println(logMsg);
 	}
 }
